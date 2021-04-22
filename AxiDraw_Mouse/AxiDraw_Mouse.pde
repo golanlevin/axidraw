@@ -1,7 +1,8 @@
 import controlP5.*;
 
 // Real-time AxiDraw Mouse-Following. 
-// by Golan Levin, September 2018. 
+// by Golan Levin, September 2018.
+// Revamped by Madeline Gannon, April 2021.
 //
 // Known to work with Processing v3.4 on OSX 10.13.5, 
 // Using Node.js v10.10.0, npm v6.4.1.
@@ -11,7 +12,7 @@ import controlP5.*;
 // https://github.com/techninja/cncserver
 //
 // Instructions: in a terminal, type 
-// node cncserver --botType=axidraw
+// sudo node cncserver --botType=axidraw
 // Then run this program. 
 
 
@@ -21,9 +22,17 @@ boolean bFollowingMouse;
 
 ControlP5 cp5;
 Accordion collapsable_frame;
+boolean show_gui = true;
 
+PVector plotter_pt;
+
+void settings(){
+  int w = 1000;
+  float h = w * .6470; // aspect ratio of AxiDraw v3
+  size(w, int(h)); 
+}
+  
 void setup() {
-  size(1000, 1000); 
   background(0, 0, 0); 
   fill(255, 255, 255); 
   text("Waiting for plotter to connect.", 20, 20); 
@@ -63,6 +72,10 @@ void draw() {
     text("Must zero plotter before use!", 20, 20);
     text("Move plotter to home position, press 'z'.", 20, 35);
   }
+  
+  if (show_gui){
+    cp5.draw();
+  }
 }
 
 
@@ -84,13 +97,18 @@ void keyPressed() {
     bFollowingMouse = !bFollowingMouse;
     println("bFollowingMouse = " + bFollowingMouse);
   }
+  
+  if (key == 'h'){
+    show_gui = !show_gui;
+  }
 }
 
 
 //=======================================
 void setup_gui() {
   cp5 = new ControlP5(this);
-
+  cp5.setAutoDraw(false);
+  
   Group axi_controller = cp5.addGroup("AxiDraw Controller")
               .setPosition(10,10)
               .setWidth(200)
@@ -214,22 +232,46 @@ p.y += btn_width + 25;
                  .addItem(axi_controller)
                  ;
   collapsable_frame.open(0);                 
-  collapsable_frame.setCollapseMode(Accordion.MULTI);         
+  collapsable_frame.setCollapseMode(Accordion.MULTI);
+  
+  cp5.mapKeyFor(new ControlKey() {public void keyEvent() {collapsable_frame.open(0);}}, 'o');
+  cp5.mapKeyFor(new ControlKey() {public void keyEvent() {collapsable_frame.close(0);}}, 'c');
 }
 
 //=======================================
 void controlEvent(ControlEvent theEvent) {
-  if(theEvent.isGroup()) {
-    println("got an event from group "
-            +theEvent.getGroup().getName()
-            +", isOpen? "+theEvent.getGroup().isOpen()
-            );
-            
-  } else if (theEvent.isController()){
-    println("got something from a controller "
-            +theEvent.getController().getName()
-            );
+
+  if(theEvent.getController().getName() == "motor_state"){
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
   }
+  else if (theEvent.getController().getName() == "pen_state"){
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+  }
+  else if (theEvent.getController().getName() == "pen_min"){
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+  }
+  else if (theEvent.getController().getName() == "pen_max"){
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+  }
+  else if (theEvent.getController().getName() == "set_home"){
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+  }
+  else if (theEvent.getController().getName() == "go_home"){
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+    // pen up
+    // move to home
+  }
+  else if(theEvent.getController().getName() == "axi_preview"){
+    println(theEvent.getController().getName()+": {"+theEvent.getController().getArrayValue()[0]+"," + theEvent.getController().getArrayValue()[1]+"}");
+  }
+  else if (theEvent.getController().getName() == ""){
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+  }
+  else{
+    print("Unknown GUI Input from: ");
+    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+  }
+ 
 }
 
 
