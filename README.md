@@ -1,7 +1,10 @@
 # Processing to AxiDraw v3
 #### Controlling the AxiDraw v3 Plotter with Processing 3
 
-> Based on project by Aaron Koblin: https://github.com/koblin/AxiDrawProcessing
+- Tested with Processing v3.5 on OSX 10.14, with Node.js 15.14.0 and npm 7.7.6.
+- Based on project by Aaron Koblin: https://github.com/koblin/AxiDrawProcessing
+- Uses CNCServer by @techninja: https://github.com/techninja/cncserver
+
 
 
 ## Setup
