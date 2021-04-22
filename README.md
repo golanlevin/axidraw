@@ -32,7 +32,7 @@ npm install
 
 7. Plug in the AxiDraw to your computer
 
-8. Start the Node CNCServer to open communications with your AxiDraw
+8. Start the Node CNCServer to open communications with your AxiDraw. You should hear the motors click on after running this command:
 ```
 sudo node cncserver --botType=axidraw
 ```
