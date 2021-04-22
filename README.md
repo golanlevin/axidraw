@@ -11,32 +11,32 @@
 ```
 ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 ```
-Update Homebrew:
+2. Update Homebrew (this could take a while):
 ```
 brew update
 ```
-2. Install Node.js:
+3. Install Node.js:
 ```
 brew install node
 ```
-3. Clone or Download [CNCServer](https://github.com/techninja/cncserver):
+4. Clone or Download [CNCServer](https://github.com/techninja/cncserver):
 ```
 git clone https://github.com/techninja/cncserver.git
 ```
-4. Install NPM (Node Package Manager):
+5. Install NPM (Node Package Manager):
 ```
 cd cncserver
 npm install
 ```
-5. Install [Processing](https://processing.org/download/)
+6. Install [Processing](https://processing.org/download/)
 
-6. Plug in the AxiDraw to your computer
+7. Plug in the AxiDraw to your computer
 
-7. Start the Node CNCServer to open communications with your AxiDraw
+8. Start the Node CNCServer to open communications with your AxiDraw
 ```
 sudo node cncserver --botType=axidraw
 ```
-8. Run `AxiDraw_Mouse.pde` 
+9. Run `AxiDraw_Mouse.pde` 
 
 ## Tips & Tricks
 
