@@ -1,6 +1,5 @@
 import netP5.*;
 import oscP5.*;
-
 import controlP5.*;
 
 // Real-time AxiDraw Mouse-Following. 
@@ -68,11 +67,10 @@ void setup() {
   cnc.unlock();
   cnc.penUp();
   println("Plotter is at home? Press 'u' to unlock, 'z' to zero, 'd' to draw");
-  
-  if (remote_control){
-      // start oscP5, listening for incoming messages at port 12000
-      oscP5 = new OscP5(this,12000);
 
+  if (remote_control) {
+    // start oscP5, listening for incoming messages at port 12000
+    oscP5 = new OscP5(this, 12000);
   }
 }
 
@@ -137,12 +135,9 @@ void keyPressed() {
 
   // Re-Home the AxiDraw
   if (key == 'z') {
-    cnc.zero();
-    home_pos.set(0, 0);
-    bPlotterIsZeroed = true; 
-    println("Pen zero'd");
+    reset_home();
   }
-  
+
   // Send the AxiDraw Home
   if (key == 'g') go_home();
 
@@ -151,26 +146,46 @@ void keyPressed() {
     bFollowingMouse = !bFollowingMouse;
     do_drawing = !do_drawing;
     cp5.getController("do_drawing").setValue(do_drawing?1.0:0.0);
-    
+
     // update the mode
-    if (do_drawing && drawing_mode == Mode.NONE){
-       drawing_mode = Mode.LIVE;   // go LIVE by default
+    if (do_drawing && drawing_mode == Mode.NONE) {
+      /// go LIVE by default and update trhought the GUI
+      float [] temp = {1., 0};
+      cp5.getGroup("drawing_mode").setArrayValue(temp);
     }
     println("bFollowingMouse = " + bFollowingMouse);
   }
-  
+
   // Toggle the pen
   if (key == 'p') {
     float pen_state = cp5.getController("pen_state").getValue();
     cp5.getController("pen_state").setValue(abs(1-pen_state));
   }
-  
+
   // Toogle the gui
   if (key == 'h') {
     show_gui = !show_gui;
   }
 }
 
+//=======================================
+void move_to(PVector p) {
+  // update the axi_preview postion
+  float temp [] = {plotter_pt.x, plotter_pt.y};
+  cp5.getController("axi_preview").setArrayValue(temp);
+
+  // make your move
+  cnc.moveTo(p.x, p.y);
+}
+//move_to(plotter_pt);
+
+//=======================================
+void reset_home() {
+    cnc.zero();
+    home_pos.set(0, 0);
+    bPlotterIsZeroed = true; 
+    println("HOME POS RESET");
+}
 //=======================================
 void go_home() {
   cnc.penUp();
@@ -314,7 +329,7 @@ void setup_gui() {
     .setBackgroundColor(color(0, 50))
     ;
   p.set(drawing_controller.getPosition()[0], drawing_controller.getPosition()[1]);
-  
+
   cp5.addTextlabel("drawing_modes")
     .setText("DRAWING MODE")
     .setPosition(p.x-4, p.y)
@@ -391,7 +406,10 @@ void controlEvent(ControlEvent theEvent) {
       boolean draw_plot = boolean(int(theEvent.getGroup().getArrayValue()[1]));
       if (draw_live) drawing_mode = Mode.LIVE;
       else if (draw_plot) drawing_mode = Mode.PLOT;
-      else { drawing_mode = Mode.NONE; do_drawing = false; }
+      else { 
+        drawing_mode = Mode.NONE; 
+        do_drawing = false;
+      }
     }
   } else {
     if (theEvent.getController().getName() == "motor_state") {
@@ -432,6 +450,35 @@ void controlEvent(ControlEvent theEvent) {
   }
 }
 
+//=======================================
+void oscEvent(OscMessage theOscMessage) {
+  /* check if theOscMessage has the address pattern we are looking for. */
+
+  if (theOscMessage.checkAddrPattern("/test")==true) {
+    /* check if the typetag is the right one. */
+    if (theOscMessage.checkTypetag("ifs")) {
+      /* parse theOscMessage and extract the values from the osc message arguments. */
+      int firstValue = theOscMessage.get(0).intValue();  
+      float secondValue = theOscMessage.get(1).floatValue();
+      String thirdValue = theOscMessage.get(2).stringValue();
+      print("### received an osc message /test with typetag ifs.");
+      println(" values: "+firstValue+", "+secondValue+", "+thirdValue);
+      return;
+    }
+  }
+  if (theOscMessage.checkAddrPattern("/point")==true) {
+    if (theOscMessage.checkTypetag("ff")) {
+      // update the target plotter point with the incoming pos     
+      float x = map(theOscMessage.get(0).floatValue(), 0, width, 0, 100);
+      float y = map(theOscMessage.get(1).floatValue(), 0, height, 0, 100);
+      plotter_pt.x = constrain(x, 0, 100); 
+      plotter_pt.y = constrain(y, 0, 100);
+      
+      move_to(plotter_pt);
+    }
+  } 
+  println("### received an osc message. with address pattern "+theOscMessage.addrPattern());
+}
 
 //=======================================
 void exit() {
