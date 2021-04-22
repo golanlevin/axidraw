@@ -56,5 +56,8 @@ This example shows you how to control the AxiDraw from external apps, phones, an
 I control touch devices using [TouchOSC](https://hexler.net/touchosc). To use TouchOSC:
 1. Download the app from your repsective app store.
 2. Download the free [TouchOSC Editor](https://hexler.net/pub/touchosc/touchosc-editor-1.8.9-macos.zip)
-3. In the editor, open the `touchosc_xy_pad.touchosc` file the Processing Project's `/data` folder.
+3. In the editor, open the `touchosc_xy_pad.touchosc` file the Processing sketch's `/data` folder.
 4. Sync from the Editor to your Device following [these](https://hexler.net/docs/touchosc-editor-sync) instructions.
+5. Select the `touchosc_xy_pad` layout from your device's layout options.
+6. Connect the Processing sketch to Touch OSC using [these](https://hexler.net/docs/touchosc-configuration-connections-osc) instructions.
+    - The Processing sketch is listening on port `12000`. Be sure your TouchOSC outgoing port is set correctly.
