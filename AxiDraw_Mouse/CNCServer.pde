@@ -14,6 +14,9 @@ class CNCServer {
   
   String penURL;
   String motorsURL;
+  
+  float pen_dn_pos = .75;
+  float pen_up_pos = 0;
    
   CNCServer(String url) {
     this.url = url;
@@ -25,12 +28,12 @@ class CNCServer {
 
   void penDown(){
    JSONObject comJSON = new JSONObject();
-   comJSON.put("state", .75);// fully down is 1
+   comJSON.put("state", pen_dn_pos);// fully down is 1
    sendPut(penURL, comJSON);
   }
   void penUp(){
    JSONObject comJSON = new JSONObject();
-   comJSON.put("state", 0);
+   comJSON.put("state", pen_up_pos);
    sendPut(penURL, comJSON);
   }
   

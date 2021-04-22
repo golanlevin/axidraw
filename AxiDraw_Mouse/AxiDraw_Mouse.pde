@@ -24,7 +24,7 @@ ControlP5 cp5;
 Accordion collapsable_frame;
 boolean show_gui = true;
 
-PVector plotter_pt;
+PVector plotter_pt = new PVector();
 
 void settings(){
   int w = 1000;
@@ -47,15 +47,29 @@ void setup() {
   println("Plotter is at home? Press 'u' to unlock, 'z' to zero, 'd' to draw");
 }
 
+void update(){
+  println("yoooo");
+}
+
 //=======================================
 void draw() {
 
   if (bPlotterIsZeroed) {
     background(255, 255, 255); 
     if (bFollowingMouse) {
-      float mx = constrain(mouseX/10.0, 0, 100);
-      float my = constrain(mouseY/10.0, 0, 100); 
-      cnc.moveTo(mx, my);
+      //float mx = constrain(mouseX/10.0, 0, 100);
+      //float my = constrain(mouseY/10.0, 0, 100); 
+      //cnc.moveTo(mx, my);
+      float x = map(mouseX,0,width,0,100);
+      float y = map(mouseY,0,height,0,100);
+      plotter_pt.x = constrain(x, 0, 100); 
+      plotter_pt.y = constrain(y, 0, 100); 
+      cnc.moveTo(plotter_pt.x, plotter_pt.y);
+      
+      // update the axi_preview postion
+      float temp [] = {plotter_pt.x, plotter_pt.y};
+      cp5.getController("axi_preview").setArrayValue(temp);
+      
       if (mousePressed) {
         cnc.penDown();
       } else {
@@ -103,6 +117,12 @@ void keyPressed() {
   }
 }
 
+//=======================================
+void go_home() {
+  cnc.penUp();
+  cnc.moveTo(0,0);
+}
+
 
 //=======================================
 void setup_gui() {
@@ -131,8 +151,8 @@ void setup_gui() {
   
   p.y += 15;
   
-  cp5.addToggle("motor_state")
-     .setLabel("MOTOR STATE")
+  cp5.addBang("motor_state")
+     .setLabel("MOTORS OFF")
      .setPosition(p.x, p.y)
      .setSize(btn_width,btn_width)
      .setGroup(axi_controller)
@@ -242,10 +262,20 @@ p.y += btn_width + 25;
 void controlEvent(ControlEvent theEvent) {
 
   if(theEvent.getController().getName() == "motor_state"){
-    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+    cnc.unlock();
+    println("MOTORS ARE OFF. You can now manually move the carriage.");
+    }
   }
   else if (theEvent.getController().getName() == "pen_state"){
     println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+    switch(int(theEvent.getController().getValue())){
+      case 0:
+        cnc.penUp();
+        break;
+      case 1:
+        cnc.penDown();
+        break;
+    }
   }
   else if (theEvent.getController().getName() == "pen_min"){
     println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
@@ -254,12 +284,11 @@ void controlEvent(ControlEvent theEvent) {
     println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
   }
   else if (theEvent.getController().getName() == "set_home"){
-    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+    cnc.zero();
+    println("NEW HOME POSITION SET!");
   }
   else if (theEvent.getController().getName() == "go_home"){
-    println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
-    // pen up
-    // move to home
+    go_home();
   }
   else if(theEvent.getController().getName() == "axi_preview"){
     println(theEvent.getController().getName()+": {"+theEvent.getController().getArrayValue()[0]+"," + theEvent.getController().getArrayValue()[1]+"}");
@@ -277,7 +306,7 @@ void controlEvent(ControlEvent theEvent) {
 
 //=======================================
 void exit() {
-  cnc.penUp();
+  go_home();
   cnc.unlock();
   println("Goodbye!");
   super.exit();
