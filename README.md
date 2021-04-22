@@ -7,9 +7,7 @@
 ## Setup
 > Note: Instructions are for Mac OS
 
-1. Install and Update Hombrew (detailed instructions [here](http://blog.teamtreehouse.com/install-node-js-npm-mac))
-
-Open Terminal and type
+1. Install and Update Hombrew (detailed instructions [here](http://blog.teamtreehouse.com/install-node-js-npm-mac)). Open Terminal and type:
 ```
 ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 ```
@@ -17,15 +15,15 @@ Update Homebrew:
 ```
 brew update
 ```
-2. Install Node.js
+2. Install Node.js:
 ```
 brew install node
 ```
-3. Clone or Download [CNCServer](https://github.com/techninja/cncserver)
+3. Clone or Download [CNCServer](https://github.com/techninja/cncserver):
 ```
 git clone https://github.com/techninja/cncserver.git
 ```
-4. Install NPM (Node Package Manager)
+4. Install NPM (Node Package Manager):
 ```
 cd cncserver
 npm install
