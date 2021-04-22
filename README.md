@@ -1,5 +1,5 @@
-# axidraw
-Controlling the AxiDraw Plotter
+# Processing to AxiDraw v3
+Controlling the AxiDraw v3 Plotter with Processing 3
 
 
 http://blog.teamtreehouse.com/install-node-js-npm-mac
