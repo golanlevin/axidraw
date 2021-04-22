@@ -50,4 +50,11 @@ If not working:
 sudo node cncserver --botType=axidraw
 ```
 
+## External Control & TouchOSC
+This example shows you how to control the AxiDraw from external apps, phones, and tablets over [OSC](http://www.sojamo.de/libraries/oscP5/).
 
+I control touch devices using [TouchOSC](https://hexler.net/touchosc). To use TouchOSC:
+1. Download the app from your repsective app store.
+2. Download the free [TouchOSC Editor](https://hexler.net/pub/touchosc/touchosc-editor-1.8.9-macos.zip)
+3. In the editor, open the `touchosc_xy_pad.touchosc` file the Processing Project's `/data` folder.
+4. Sync from the Editor to your Device following [these](https://hexler.net/docs/touchosc-editor-sync) instructions.
