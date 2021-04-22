@@ -7,8 +7,6 @@
 ## Setup
 > Note: Instructions are for Mac OS
 
-### Install Node.js and NPM
-
 1. Install and Update Hombrew (detailed instructions [here](http://blog.teamtreehouse.com/install-node-js-npm-mac))
 
 Open Terminal and type
