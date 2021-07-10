@@ -2,11 +2,14 @@ import netP5.*;
 import oscP5.*;
 import controlP5.*;
 
-// Real-time AxiDraw Mouse-Following. 
-// by Golan Levin, September 2018.
-// Revamped by Madeline Gannon, April 2021.
+import java.util.*;
+
+
+// AxiDraw Plot Server Example
+// by ATONATON
+// @author Madeline Gannon, April 2021.
 //
-// Known to work with Processing v3.4 on OSX 10.13.5, 
+// Tested on Processing v3.5.4 on OSX 10.14.6, 
 // Using Node.js v10.10.0, npm v6.4.1.
 // Based on AxiDraw_Simple by Aaron Koblin
 // https://github.com/koblin/AxiDrawProcessing
@@ -14,24 +17,19 @@ import controlP5.*;
 // https://github.com/techninja/cncserver
 //
 // Instructions: in a terminal, type 
-// sudo node cncserver --botType=axidraw
+// sudo node cncserver --botType=axidraw_v3a3
 // Then run this program. 
 
 
-/**
- *  TO DO:
- *    - Fix mapping between mouseX/mouseY and travel width/height 
- *         (the AxiDraw is not moving its full range)
- *    - Add OSC panel
- */
+// AxiDraw connection
+CNCServer cnc;
 
+// OSC External Comms
 OscP5 oscP5;
 boolean remote_control = true;
+int PORT_RECEIVING = 12000;
 
-CNCServer cnc;
-boolean bPlotterIsZeroed;
-boolean bFollowingMouse;
-
+// GUI
 ControlP5 cp5;
 Accordion collapsable_frame;
 boolean show_gui = true;
@@ -39,6 +37,7 @@ boolean show_gui = true;
 PVector plotter_pt = new PVector();
 PVector home_pos = new PVector(-1, -1);
 
+// App states
 enum Mode {
   NONE, 
     LIVE, 
@@ -47,74 +46,59 @@ enum Mode {
 Mode drawing_mode = Mode.NONE;
 boolean do_drawing = false;
 
+// Holds user drawn lines
+ArrayList<ArrayList<PVector>> polylines = new ArrayList<ArrayList<PVector>>();
+
+// Holds the list of lines to plot
+Deque<ArrayList<PVector>> plot_queue = new  ArrayDeque<ArrayList<PVector>>();
+// Shows which lines have been plotted
+ArrayList<ArrayList<PVector>> drawn_lines = new ArrayList<ArrayList<PVector>>();
+
 
 void settings() {
   int w = 1000;
-  float h = w * .6470; // aspect ratio of AxiDraw v3
+  // set window to aspect ratio of AxiDraw v3
+  float h = w * .6470; 
   size(w, int(h));
 }
 
 void setup() {
   background(0, 0, 0); 
-  fill(255, 255, 255); 
-  text("Waiting for plotter to connect.", 20, 20); 
 
   setup_gui();
 
-  bPlotterIsZeroed = false;
-  bFollowingMouse = false;
-  cnc = new CNCServer("http://localhost:4242");
-  cnc.unlock();
-  cnc.penUp();
-  println("Plotter is at home? Press 'u' to unlock, 'z' to zero, 'd' to draw");
+  if (remote_control) setup_comms();
 
-  if (remote_control) {
-    // start oscP5, listening for incoming messages at port 12000
-    oscP5 = new OscP5(this, 12000);
-  }
-}
+  setup_cnc_server();    // <-- should be in its own thread
 
-void update() {
-  println("yoooo");
+  setup_geometry();
 }
 
 //=======================================
 void draw() {
 
-  if (isHomePosSet()) {
-    background(255, 255, 255); 
-    //if (bFollowingMouse) {
-    if (drawing_mode == Mode.LIVE && do_drawing) {
-
-      // follow the mouse
-      float x = map(mouseX, 0, width, 0, 100);
-      float y = map(mouseY, 0, height, 0, 100);
-      plotter_pt.x = constrain(x, 0, 100); 
-      plotter_pt.y = constrain(y, 0, 100); 
-
-      // update the axi_preview postion
-      float temp [] = {plotter_pt.x, plotter_pt.y};
-      cp5.getController("axi_preview").setArrayValue(temp);
-
-      // make your move
-      cnc.moveTo(plotter_pt.x, plotter_pt.y);
-
-      // move the pen up & down
-      if (mousePressed) {
-        cnc.penDown();
-      } else {
-        cnc.penUp();
-      }
-    } else {
-      fill(0, 0, 0);
-      text ("Enable drawing to move plotter.", 20, 20);
-      text ("Toggle 'd' to enable drawing.", 20, 35);
-    }
+  if (!isHomePosSet()) {
+    // Let the user know they need to HOME the machine
+    background(242, 95, 95); 
+    fill(255, 255, 255);
+    textSize(14);
+    textAlign(CENTER, CENTER);
+    text("You must set a HOME POSITION before use.", width/2, height/2-25);
+    text("1. TURN OFF the motors, \n2. Move the carriage to the TOP LEFT corner, \n3. Press 'z' to set the HOME POS.", width/2, height/2+25);
   } else {
-    background(255, 0, 0); 
-    fill(255, 255, 255); 
-    text("Must zero plotter before use!", 20, 20);
-    text("Move plotter to home position, press 'z'.", 20, 35);
+    background(255, 255, 255); 
+
+    // small demo for live control
+    if (drawing_mode == Mode.LIVE && do_drawing) {      
+      follow_mouse();
+    } 
+
+    // small demo for drawing/plotting with the mouse
+    if (drawing_mode == Mode.PLOT) {      
+      draw_user_polylines();
+    } 
+ 
+    draw_plot_lines(drawn_lines);
   }
 
   if (show_gui) {
@@ -122,6 +106,34 @@ void draw() {
   }
 }
 
+//=======================================
+void mousePressed() {
+  if (!cp5.isMouseOver() && drawing_mode == Mode.PLOT) {
+    polylines.get(polylines.size()-1).add(new PVector(mouseX, mouseY));
+    plot_queue.getLast().add(new PVector(mouseX, mouseY));
+  }
+}
+
+//=======================================
+void mouseDragged() {
+  if (!cp5.isMouseOver() && drawing_mode == Mode.PLOT) {
+    float thresh = 5;
+    PVector prev_pt = polylines.get(polylines.size()-1).get(polylines.get(polylines.size()-1).size()-1);
+    PVector pt = new PVector(mouseX, mouseY);
+    if (dist(prev_pt.x, prev_pt.y, pt.x, pt.y) > thresh) {
+      polylines.get(polylines.size()-1).add(pt);
+      plot_queue.getLast().add(pt);
+    }
+  }
+}
+
+//=======================================
+void mouseReleased() {
+  if (!cp5.isMouseOver() && drawing_mode == Mode.PLOT) {
+    polylines.add(new ArrayList<PVector>());
+    plot_queue.add(new ArrayList<PVector>());
+  }
+}
 
 //=======================================
 void keyPressed() {
@@ -143,7 +155,6 @@ void keyPressed() {
 
   // Change the drawing state
   if (key == 'd') {
-    bFollowingMouse = !bFollowingMouse;
     do_drawing = !do_drawing;
     cp5.getController("do_drawing").setValue(do_drawing?1.0:0.0);
 
@@ -153,7 +164,6 @@ void keyPressed() {
       float [] temp = {1., 0};
       cp5.getGroup("drawing_mode").setArrayValue(temp);
     }
-    println("bFollowingMouse = " + bFollowingMouse);
   }
 
   // Toggle the pen
@@ -166,28 +176,87 @@ void keyPressed() {
   if (key == 'h') {
     show_gui = !show_gui;
   }
+
+  // clear any user generated lines
+  if (key == 'c') {
+    polylines.clear();
+    polylines.add(new ArrayList<PVector>());
+
+    drawn_lines.clear();
+    plot_queue.clear();
+    plot_queue.add(new ArrayList<PVector>());
+  }
 }
 
 //=======================================
-void move_to(PVector p) {
+void exit() {
+  go_home();
+  cnc.unlock();
+  println("Goodbye!");
+  super.exit();
+}
+
+//=======================================
+void stop() {
+  super.exit();
+}
+
+//=======================================
+void follow_mouse() {
+  // follow the mouse
+  float x = map(mouseX, 0, width, 0, 100);
+  float y = map(mouseY, 0, height, 0, 100);
+  plotter_pt.x = constrain(x, 0, 100); 
+  plotter_pt.y = constrain(y, 0, 100); 
+
   // update the axi_preview postion
   float temp [] = {plotter_pt.x, plotter_pt.y};
   cp5.getController("axi_preview").setArrayValue(temp);
 
   // make your move
-  cnc.moveTo(p.x, p.y);
+  cnc.moveTo(plotter_pt.x, plotter_pt.y);
+
+  // move the pen up & down
+  if (mousePressed) {
+    cnc.penDown();
+  } else {
+    cnc.penUp();
+  }
 }
-//move_to(plotter_pt);
+
+//=======================================
+void move_to(PVector p) {
+  // map the incoming point to the canvas dimensions
+  float x = map(p.x, 0, width, 0, 100);
+  float y = map(p.y, 0, height, 0, 100);
+  plotter_pt.x = constrain(x, 0, 100); 
+  plotter_pt.y = constrain(y, 0, 100); 
+
+  // update the axi_preview postion
+  float temp [] = {plotter_pt.x, plotter_pt.y};
+  cp5.getController("axi_preview").setArrayValue(temp);
+
+  // make your move
+  cnc.moveTo(plotter_pt.x, plotter_pt.y);
+}
+
 
 //=======================================
 void reset_home() {
-    cnc.zero();
-    home_pos.set(0, 0);
-    bPlotterIsZeroed = true; 
-    println("HOME POS RESET");
+  cnc.zero();
+  home_pos.set(0, 0);
+
+  // set the user-defined pen positions
+  cnc.pen_up_pos = map(cp5.getController("pen_max").getValue(), 0, 1, 1, 0);
+  cnc.pen_dn_pos = map(cp5.getController("pen_min").getValue(), 0, 1, 1, 0);
+
+  println("HOME POS RESET");
 }
+
 //=======================================
 void go_home() {
+  // raise the pen all the way
+  cnc.pen_up_pos = 0;
   cnc.penUp();
   plotter_pt.set(0, 0);
   // update the axi_preview postion
@@ -195,6 +264,9 @@ void go_home() {
   cp5.getController("axi_preview").setArrayValue(temp);
   // go home
   cnc.moveTo(plotter_pt.x, plotter_pt.y);
+  // move the pen back to the user-defined UP pos
+  cnc.pen_up_pos = map(cp5.getController("pen_max").getValue(), 0, 1, 1, 0);
+  cnc.penUp();
 }
 
 //=======================================
@@ -202,6 +274,124 @@ boolean isHomePosSet() {
   return home_pos.x == 0 && home_pos.y==0;
 }
 
+//=======================================
+void draw_user_polylines() {
+  pushStyle();
+  noFill();
+  strokeWeight(12.0);
+  strokeCap(ROUND);
+  stroke(255, 0, 255, 120);
+  // draw a FAT line
+  for (ArrayList<PVector> line : polylines) {
+    beginShape();
+    for (PVector v : line) {
+      vertex(v.x, v.y);
+    }
+    endShape();
+  }
+  noFill();
+  strokeWeight(1.0);
+  stroke(255, 0, 255);
+  // draw a THIN line on top
+  for (ArrayList<PVector> line : polylines) {
+    beginShape();
+    for (PVector v : line) {
+      vertex(v.x, v.y);
+    }
+    endShape();
+  }
+  popStyle();
+}
+
+//=======================================
+void plot(Deque<ArrayList<PVector>> lines) {
+  while (lines.size() > 0) {
+    // Add a new empty drawn line
+    drawn_lines.add(new ArrayList<PVector>());
+    // Plot the line
+    plot_line(lines.poll());
+  }
+  // if we're done plotting, add an empty list to the queue
+  plot_queue.add(new ArrayList<PVector>());
+}
+
+//=======================================
+void plot_line(ArrayList<PVector> line) {
+  // if we have points in the line
+  if (line.size() > 0) {
+    // move to the starting point
+    move_to(line.get(0));
+    println("PEN DOWN");
+    cnc.penDown();
+    // draw the line
+    for (int i=0; i<line.size(); i++) {
+      println(i+ ": " + line.get(i));
+      move_to(line.get(i));
+      // add to the drawn points for visualizing
+      drawn_lines.get(drawn_lines.size()-1).add(line.get(i));
+    }
+    // retract the pen
+    println("PEN UP");
+    cnc.penUp();
+  }
+}
+
+//=======================================
+void draw_plot_lines(ArrayList<ArrayList<PVector>> lines) {
+  pushStyle();
+  noFill();
+  strokeWeight(2);
+  strokeCap(ROUND);
+
+  int i=0;
+  for (ArrayList<PVector> line : lines) {
+
+    if (line.size() > 0) {
+
+      // draw the travel line
+      if (i!=0) {
+        stroke(255, 0, 0);  // RED
+        PVector prev_pt = polylines.get(i-1).get(polylines.get(i-1).size()-1);
+        PVector pt = line.get(0);
+        line(prev_pt.x, prev_pt.y, pt.x, pt.y);
+      }
+      // draw the plotted line
+      stroke(36, 198, 255);  // BLUE
+      beginShape();
+      for (PVector v : line) {
+        vertex(v.x, v.y);
+      }
+      endShape();
+
+      i++;
+    }
+  }
+  popStyle();
+}
+
+//=======================================
+void setup_geometry() {
+  // add the fist array list for mouse points to be added
+  polylines.add(new ArrayList<PVector>());
+  plot_queue.add(new ArrayList<PVector>());
+}
+
+//=======================================
+void setup_comms() {
+  // start oscP5, listening for incoming messages at port 12000
+  oscP5 = new OscP5(this, PORT_RECEIVING);
+}
+
+//=======================================
+void setup_cnc_server() {
+  // TODO: should be in its own thread
+  cnc = new CNCServer("http://localhost:4242");
+  cnc.pen_up_pos = map(cp5.getController("pen_max").getValue(), 0, 1, 1, 0);
+  cnc.pen_dn_pos = map(cp5.getController("pen_min").getValue(), 0, 1, 1, 0);
+  cnc.unlock();
+  cnc.penUp();
+  println("AxiDraw is all set up! Remember to set the HOME POSITION :)");
+}
 
 //=======================================
 void setup_gui() {
@@ -356,7 +546,7 @@ void setup_gui() {
     .setGroup(drawing_controller)
     ; 
   p.y += 15;
-  cp5.addToggle("do_drawing")
+  cp5.addBang("do_drawing")
     .setLabel("DO DRAWING")
     .setPosition(p.x, p.y)
     .setSize(35, 35)
@@ -389,12 +579,12 @@ void setup_gui() {
     }
   }
   , 'o');
-  cp5.mapKeyFor(new ControlKey() {
-    public void keyEvent() {
-      collapsable_frame.close(0, 1);
-    }
-  }
-  , 'c');
+  //cp5.mapKeyFor(new ControlKey() {
+  //  public void keyEvent() {
+  //    collapsable_frame.close(0, 1);
+  //  }
+  //}
+  //, 'c');
 }
 
 //=======================================
@@ -436,17 +626,26 @@ void controlEvent(ControlEvent theEvent) {
     } else if (theEvent.getController().getName() == "set_home") {
       cnc.zero();
       home_pos.set(0, 0);
+      // update the axi_preview postion
+      float temp [] = {0, 0};
+      cp5.getController("axi_preview").setArrayValue(temp);
       println("NEW HOME POSITION SET!");
     } else if (theEvent.getController().getName() == "go_home") {
       go_home();
     } else if (theEvent.getController().getName() == "axi_preview") {
       //println(theEvent.getController().getName()+": {"+theEvent.getController().getArrayValue()[0]+"," + theEvent.getController().getArrayValue()[1]+"}");
-    } else if (theEvent.getController().getName() == "") {
-      println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+    } else if (theEvent.getController().getName() == "do_drawing") {
+      if (theEvent.getController().getValue()==1 && drawing_mode == Mode.PLOT) {
+        println("Sending to PLOT");
+        plot(plot_queue);
+      }
     } else {
       print("Unknown GUI Input from: ");
-      //println(theEvent.getController().getName());
+      println(theEvent.getController().getName());
     }
+    //else if (theEvent.getController().getName() == "") {
+    //  println(theEvent.getController().getName()+": "+theEvent.getController().getValue());
+    //}
   }
 }
 
@@ -473,21 +672,9 @@ void oscEvent(OscMessage theOscMessage) {
       float y = map(theOscMessage.get(1).floatValue(), 0, height, 0, 100);
       plotter_pt.x = constrain(x, 0, 100); 
       plotter_pt.y = constrain(y, 0, 100);
-      
+
       move_to(plotter_pt);
     }
   } 
   println("### received an osc message. with address pattern "+theOscMessage.addrPattern());
-}
-
-//=======================================
-void exit() {
-  go_home();
-  cnc.unlock();
-  println("Goodbye!");
-  super.exit();
-}
-
-void stop() {
-  super.exit();
 }
